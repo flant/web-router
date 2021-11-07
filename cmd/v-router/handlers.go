@@ -161,7 +161,7 @@ func rootDocHandler(w http.ResponseWriter, r *http.Request) {
 	if hasSuffix, _ := regexp.MatchString(fmt.Sprintf("^/[^/]+%s/.+", GlobalConfig.LocationVersions), r.RequestURI); hasSuffix {
 		items := strings.Split(r.RequestURI, fmt.Sprintf("%s/", GlobalConfig.LocationVersions))
 		if len(items) > 1 {
-		    if is_version, _ := regexp.MatchString(fmt.Sprintf("^%s[/]?", channelList),items[1]); is_version {
+		    if is_version_or_Channel, _ := regexp.MatchString(fmt.Sprintf("^(%s|v[0-9]+.[0-9]+.[0-9]+([^/]+)?)[/]?", channelList),items[1]); is_version_or_Channel {
                 // We can't handle requests to specific version. They should be routed by balancer (create corresponding Ingress resource)
                 serveFilesHandler(http.Dir(getRootFilesPath())).ServeHTTP(w, r)
             }
