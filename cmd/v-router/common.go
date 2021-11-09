@@ -88,13 +88,15 @@ func ValidateConfig() {
 		log.Fatalln(fmt.Sprintf("Unknown localization method specified (%s). It can be 'domain' or 'location'.", GlobalConfig.I18nType))
 	}
 	// Check template directory
-	if fi, err := os.Stat(getRootFilesPath() + GlobalConfig.PathTpls); err == nil {
-		if !fi.IsDir() {
-			log.Fatalln(fmt.Sprintf("The '%s%s' directory, specified as the templates directory — is not a directory", getRootFilesPath(), GlobalConfig.PathTpls))
-		}
-	} else {
-		log.Fatalln(fmt.Sprintf("Template directory '%s' doesn't exist", GlobalConfig.PathTpls))
-	}
+	if GlobalConfig.I18nType == "domain" {
+        if fi, err := os.Stat(getRootFilesPath() + GlobalConfig.PathTpls); err == nil {
+            if !fi.IsDir() {
+                log.Fatalln(fmt.Sprintf("Incorrect path for templates. The '%s%s' path is not a directory", getRootFilesPath(), GlobalConfig.PathTpls))
+            }
+        } else {
+            log.Fatalln(fmt.Sprintf("Template directory '%s%s' doesn't exist", getRootFilesPath(), GlobalConfig.PathTpls))
+        }
+    }
 	// Check channels file
 	if _, err := os.Stat(GlobalConfig.PathChannelsFile); err != nil {
 		if os.IsNotExist(err) {
