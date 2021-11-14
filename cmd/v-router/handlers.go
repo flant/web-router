@@ -124,7 +124,7 @@ func templateHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Should we do some magic here or can simply log error?
 		log.Errorf("Internal Server Error (template error), %s ", err.Error())
-		http.Error(w, "Internal Server Error (template error)", 500)
+		http.Error(w, "<!-- Internal Server Error (template error) -->", 500)
 	}
 }
 
