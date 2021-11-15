@@ -122,7 +122,7 @@ func printConfiguration() {
 	log.Infoln(fmt.Sprintf("Default group: %s", GlobalConfig.DefaultGroup))
 	log.Infoln(fmt.Sprintf("Default channel: %s", GlobalConfig.DefaultChannel))
 	log.Infoln(fmt.Sprintf("Default channel for default group: %s", GlobalConfig.DefaultChannelForDefaultGroup))
-	log.Infoln(fmt.Sprintf("Show the 'latest' channel: %s", GlobalConfig.ShowLatestChannel))
+	log.Infoln(fmt.Sprintf("Show the 'latest' channel: %v", GlobalConfig.ShowLatestChannel))
 
 	if log.GetLevel() == log.TraceLevel {
 		channelFileContent, err := ioutil.ReadFile(GlobalConfig.PathChannelsFile)
@@ -238,6 +238,17 @@ func (m *templateDataType) getVersionMenuData(r *http.Request) (err error) {
 		VersionURL: m.CurrentVersionURL,
 		IsCurrent:  true,
 	})
+
+	// Add the "latest" menu item
+	if GlobalConfig.ShowLatestChannel {
+        m.VersionItems = append(m.VersionItems, versionMenuItems{
+            Group:      "",
+            Channel:    "",
+            Version:    "latest",
+            VersionURL: "latest",
+            IsCurrent:  false,
+        })
+    }
 
 	// Add other items
 	for _, group := range getGroups() {
@@ -458,7 +469,7 @@ func getCurrentLang(r *http.Request) (result string) {
 }
 
 // Get page URL menu requested for without a leading version suffix
-// E.g /reference/build_process.html for /documentation/v1.2.3/reference/build_process.html
+// E.g /reference/page.html for /documentation/v1.2.3/reference/page.html
 // if useURI == true - use requestURI instead of x-original-uri header value
 func getDocPageURLRelative(r *http.Request, useURI bool) (result string) {
 	var (
