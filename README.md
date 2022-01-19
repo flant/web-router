@@ -24,7 +24,6 @@ web-router uses the following environment variables:
 - `VROUTER_LOCATION_VERSIONS` —  URL-location where versions will be accessed (default - `/documentation`).
 - `VROUTER_DEFAULT_GROUP` —  The default group name according to the used channel file. E.g. - "v1" or "1" (the leading 'v' can be ommited).
 - `VROUTER_DEFAULT_CHANNEL` —  The default channel name. E.g. - "stable".
-- `VROUTER_DEFAULT_CHANNEL_FOR_DEFAULT_GROUP` —  The default channel for default group (default - the same as `VROUTER_DEFAULT_CHANNEL`).
 - `VROUTER_SHOW_LATEST_CHANNEL` —  Whether to show the 'latest' channel in the menu (default - `false`).
 - `VROUTER_URL_VALIDATION` — Whether to use URL checking before redirect (use false on test environments or protected with authentication).
 - `VROUTER_I18N_TYPE` — Localization method. Can be `domain` or `location` (default - `location`).
