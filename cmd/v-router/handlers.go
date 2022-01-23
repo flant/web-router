@@ -53,8 +53,8 @@ func groupHandler(w http.ResponseWriter, r *http.Request) {
         log.Debugln(fmt.Sprintf("getVersionFromGroup: Got version - %s for x-redirect", version))
         w.Header().Set("X-Accel-Redirect", fmt.Sprintf("%s%s/%s/%s", langPrefix, GlobalConfig.LocationVersions, VersionToURL(version), getDocPageURLRelative(r, true)))
     } else {
-        log.Debugln(fmt.Sprintf("getVersionFromGroup: Got version - %s for 302 redirect", version))
-        http.Redirect(w, r, fmt.Sprintf("%s%s/%s/", langPrefix, GlobalConfig.LocationVersions, GlobalConfig.DefaultGroup), 302)
+        log.Debugln(fmt.Sprintf("getVersionFromGroup: Got error", version))
+        http.Redirect(w, r, fmt.Sprintf("%s/", langPrefix), 302)
     }
 }
 

@@ -377,11 +377,15 @@ func getVersionFromChannelAndGroup(releases *ReleasesStatusType, channel, group 
 // Gev version from specified group
 // E.g. get v1.2.3+fix6 from v1.2
 func getVersionFromGroup(releases *ReleasesStatusType, group string) (version string, err error) {
+    releaseVersions := make(map[string]string)
+
+    if GlobalConfig.DefaultChannel == "latest" {
+        return "latest", nil
+    }
 
     if len(releases.Groups) > 0 {
         for _, ReleaseGroup := range releases.Groups {
             if ReleaseGroup.Name == group {
-                releaseVersions := make(map[string]string)
                 for _, channel := range ReleaseGroup.Channels {
                     releaseVersions[channel.Name] = channel.Version
                 }
@@ -399,7 +403,12 @@ func getVersionFromGroup(releases *ReleasesStatusType, group string) (version st
         }
     }
 
-    return "", fmt.Errorf("can't get version for %s", group)
+    log.Errorln(fmt.Sprintf("can't get version for group %s, chose %s for alpha channel ", group, releaseVersions["alpha"]))
+    if len(releaseVersions["alpha"]) > 0 {
+        return releaseVersions["alpha"], nil
+    } else {
+        return "", fmt.Errorf("can't get version for group %s", group)
+    }
 
 }
 
