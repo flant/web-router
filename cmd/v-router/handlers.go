@@ -3,11 +3,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/Masterminds/sprig"
+	"github.com/Masterminds/sprig/v3"
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 	"html/template"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"path"
@@ -123,8 +124,16 @@ func templateHandler(w http.ResponseWriter, r *http.Request) {
 	_ = templateData.getVersionMenuData(r)
 
 	tplPath := getRootFilesPath() + r.URL.Path
-	tpl := template.Must(template.New("tpl").Funcs(sprig.FuncMap()).ParseFiles(tplPath))
-	err := tpl.Execute(w, templateData)
+
+	templateContent, err := ioutil.ReadFile(tplPath)
+	if err != nil {
+		log.Errorf("Can't read the template file %s: %s ", tplPath, err.Error())
+		http.Error(w, "<!-- Internal Server Error (template error) -->", 500)
+	}
+
+	tpl := template.Must(template.New("template").Funcs(sprig.FuncMap()).Parse(string(templateContent)))
+
+	err = tpl.Execute(w, templateData)
 	if err != nil {
 		// Should we do some magic here or can simply log error?
 		log.Errorf("Internal Server Error (template error), %s ", err.Error())
