@@ -3,10 +3,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/Masterminds/sprig/v3"
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 	"html/template"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"path"
@@ -54,13 +56,13 @@ func groupHandler(w http.ResponseWriter, r *http.Request) {
 		log.Debugln(fmt.Sprintf("getVersionFromGroup: Got version - %s for x-redirect", version))
 		w.Header().Set("X-Accel-Redirect", fmt.Sprintf("%s%s/%s/%s", langPrefix, GlobalConfig.LocationVersions, VersionToURL(version), getDocPageURLRelative(r, true)))
 	} else {
-		log.Debugln(fmt.Sprintf("getVersionFromGroup: Got error", version))
+		log.Debugln(fmt.Sprintf("getVersionFromGroup: Got error %e", err))
 		http.Redirect(w, r, fmt.Sprintf("%s/", langPrefix), 302)
 	}
 }
 
 // Handles request to /v<group>-<channel>/. E.g. /v1.2-beta/
-// Temprarily redirect to specific version
+// Temporarily redirect to specific version
 func groupChannelHandler(w http.ResponseWriter, r *http.Request) {
 	var version, URLToRedirect, langPrefix string
 	var err error
@@ -122,8 +124,16 @@ func templateHandler(w http.ResponseWriter, r *http.Request) {
 	_ = templateData.getVersionMenuData(r)
 
 	tplPath := getRootFilesPath() + r.URL.Path
-	tpl := template.Must(template.ParseFiles(tplPath))
-	err := tpl.Execute(w, templateData)
+
+	templateContent, err := ioutil.ReadFile(tplPath)
+	if err != nil {
+		log.Errorf("Can't read the template file %s: %s ", tplPath, err.Error())
+		http.Error(w, "<!-- Internal Server Error (template error) -->", 500)
+	}
+
+	tpl := template.Must(template.New("template").Funcs(sprig.FuncMap()).Parse(string(templateContent)))
+
+	err = tpl.Execute(w, templateData)
 	if err != nil {
 		// Should we do some magic here or can simply log error?
 		log.Errorf("Internal Server Error (template error), %s ", err.Error())
@@ -176,7 +186,7 @@ func rootDocHandler(w http.ResponseWriter, r *http.Request) {
 	if hasSuffix, _ := regexp.MatchString(fmt.Sprintf("^/[^/]+%s/.+", GlobalConfig.LocationVersions), r.RequestURI); hasSuffix {
 		items := strings.Split(r.RequestURI, fmt.Sprintf("%s/", GlobalConfig.LocationVersions))
 		if len(items) > 1 {
-			if is_version_or_Channel, _ := regexp.MatchString(fmt.Sprintf("^(%s|v[0-9]+.[0-9]+.[0-9]+([^/]+)?)[/]?", channelList), items[1]); is_version_or_Channel {
+			if isVersionOrChannel, _ := regexp.MatchString(fmt.Sprintf("^(%s|v[0-9]+.[0-9]+.[0-9]+([^/]+)?)[/]?", channelList), items[1]); isVersionOrChannel {
 				// We can't handle requests to specific version. They should be routed by balancer (create corresponding Ingress resource)
 				serveFilesHandler(http.Dir(getRootFilesPath())).ServeHTTP(w, r)
 			}
