@@ -4,8 +4,8 @@ import (
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"net/http"
-    "regexp"
-    "strings"
+	"regexp"
+	"strings"
 	"time"
 )
 
@@ -80,8 +80,8 @@ func LoggingMiddleware(next http.Handler) http.Handler {
 
 func logHTTPReq(w *responseWriter, r *http.Request, startTime time.Time) {
 	if skip, _ := regexp.MatchString("^/health[/]?$", r.URL.Path); skip {
-        return
-    }
+		return
+	}
 	log.Tracef("%+v", r)
 	if skipHTTPRequestLogging(r) {
 		return

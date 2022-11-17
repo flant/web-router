@@ -48,7 +48,7 @@ func groupHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debugln("Use handler - groupHandler")
 
 	vars := mux.Vars(r)
-	if len(vars["lang"]) > 0 {
+	if len(vars["lang"]) > 0 && GlobalConfig.I18nType == "location" {
 		langPrefix = fmt.Sprintf("/%s", vars["lang"])
 	}
 
@@ -65,22 +65,31 @@ func groupHandler(w http.ResponseWriter, r *http.Request) {
 // Temporarily redirect to specific version
 func groupChannelHandler(w http.ResponseWriter, r *http.Request) {
 	var version, URLToRedirect, langPrefix string
+	var re *regexp.Regexp
 	var err error
 
 	log.Debugln("Use handler - groupChannelHandler")
 
 	pageURLRelative := "/"
 	vars := mux.Vars(r)
-	if len(vars["lang"]) > 0 {
+	if len(vars["lang"]) > 0 && GlobalConfig.I18nType == "location" {
 		langPrefix = fmt.Sprintf("/%s", vars["lang"])
 	}
 
 	_ = updateReleasesStatus()
 
-	re := regexp.MustCompile(fmt.Sprintf("^/(ru|en)%s/[^/]+/(.+)$", GlobalConfig.LocationVersions))
-	res := re.FindStringSubmatch(r.URL.RequestURI())
-	if res != nil {
-		pageURLRelative = res[2]
+	if GlobalConfig.I18nType == "location" {
+		re = regexp.MustCompile(fmt.Sprintf("^/(ru|en)%s/[^/]+/(.+)$", GlobalConfig.LocationVersions))
+		res := re.FindStringSubmatch(r.URL.RequestURI())
+		if res != nil {
+			pageURLRelative = res[2]
+		}
+	} else {
+		re = regexp.MustCompile(fmt.Sprintf("^%s/[^/]+/(.+)$", GlobalConfig.LocationVersions))
+		res := re.FindStringSubmatch(r.URL.RequestURI())
+		if res != nil {
+			pageURLRelative = res[1]
+		}
 	}
 
 	version, err = getVersionFromChannelAndGroup(&ReleasesStatus, vars["channel"], vars["group"])
@@ -104,6 +113,7 @@ func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 
 // Render templates
 func templateHandler(w http.ResponseWriter, r *http.Request) {
+	var tplPath string
 	if err := updateReleasesStatus(); err != nil {
 		log.Println(err)
 	}
@@ -123,8 +133,18 @@ func templateHandler(w http.ResponseWriter, r *http.Request) {
 
 	_ = templateData.getVersionMenuData(r)
 
-	tplPath := getRootFilesPath() + r.URL.Path
-
+	switch GlobalConfig.I18nType {
+	case "location":
+		tplPath = getRootFilesPath() + r.URL.Path
+	case "separate-domain":
+		language := getLanguageFromDomainMap(r.Host)
+		log.Debugf("Detected %s language for the %s domain", language, r.Host)
+		tplPath = fmt.Sprintf("%s/%s%s", getRootFilesPath(), language, r.URL.Path)
+	case "domain":
+		language := getLanguageFromDomain(r.Host)
+		log.Debugf("Detected %s language for the %s domain", language, r.Host)
+		tplPath = fmt.Sprintf("%s/%s%s", getRootFilesPath(), language, r.URL.Path)
+	}
 	templateContent, err := ioutil.ReadFile(tplPath)
 	if err != nil {
 		log.Errorf("Can't read the template file %s: %s ", tplPath, err.Error())
@@ -139,6 +159,38 @@ func templateHandler(w http.ResponseWriter, r *http.Request) {
 		log.Errorf("Internal Server Error (template error), %s ", err.Error())
 		http.Error(w, "<!-- Internal Server Error (template error) -->", 500)
 	}
+}
+
+func getLanguageFromDomainMap(input string) string {
+	result := ""
+	host := strings.Split(input, ":")[0]
+	for lang, domain := range DomainMap {
+		// Get the first value from the map, to use as the default.
+		if result == "" {
+			result = lang
+		}
+
+		if host == domain || host == "www."+domain {
+			return lang
+		}
+	}
+
+	return result
+}
+
+func getLanguageFromDomain(input string) string {
+	// Use en as the default language.
+	result := "en"
+
+	host := strings.Split(input, ":")[0]
+
+	if strings.HasPrefix(host, "ru.") || strings.HasPrefix(host, "www.ru.") {
+		result = "ru"
+	} else {
+		result = "en"
+	}
+
+	return result
 }
 
 func serveFilesHandler(fs http.FileSystem) http.Handler {
@@ -179,7 +231,7 @@ func rootDocHandler(w http.ResponseWriter, r *http.Request) {
 	log.Debugln("Use handler - rootDocHandler")
 
 	vars := mux.Vars(r)
-	if len(vars["lang"]) > 0 {
+	if len(vars["lang"]) > 0 && GlobalConfig.I18nType == "location" {
 		langPrefix = fmt.Sprintf("/%s", vars["lang"])
 	}
 
@@ -199,12 +251,20 @@ func rootDocHandler(w http.ResponseWriter, r *http.Request) {
 
 // Redirect to root documentation if request not matches any location (override 404 response)
 func notFoundHandler(w http.ResponseWriter, r *http.Request) {
+	var re *regexp.Regexp
 	lang := "en"
 
-	re := regexp.MustCompile(`^/(ru|en)/.*$`)
-	res := re.FindStringSubmatch(r.URL.RequestURI())
-	if res != nil {
-		lang = res[1]
+	switch GlobalConfig.I18nType {
+	case "location":
+		re = regexp.MustCompile(`^/(ru|en)/.*$`)
+		res := re.FindStringSubmatch(r.URL.RequestURI())
+		if res != nil {
+			lang = res[1]
+		}
+	case "separate-domain":
+		lang = getLanguageFromDomainMap(r.Host)
+	case "domain":
+		lang = getLanguageFromDomain(r.Host)
 	}
 
 	w.WriteHeader(http.StatusNotFound)
@@ -228,10 +288,9 @@ func notFoundHandler(w http.ResponseWriter, r *http.Request) {
 ">
 <div class="content">
     <div style="margin-top: 100px; width: 100%; width: 80%; margin-left: 50px;">
-        <h1 class="docs__title">Page not found</h1>
+        <h1 class="docs__title">There was a glitch, try in a few seconds...</h1>
         <div class="post-content">
-            <p>Sorry, the page you were looking for does not exist.</p>
-            <p>Try searching for it or check the URL to see if it looks correct.</p>
+            <p>Sorry, maybe we are already investigating the problem and will fix it soon.</p>
         </div>
     </div>
 </div>

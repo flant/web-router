@@ -26,9 +26,11 @@ web-router uses the following environment variables:
 - `VROUTER_DEFAULT_CHANNEL` —  The default channel name. E.g. - "stable".
 - `VROUTER_SHOW_LATEST_CHANNEL` —  Whether to show the 'latest' channel in the menu (default - `false`).
 - `VROUTER_URL_VALIDATION` — Whether to use URL checking before redirect (use false on test environments or protected with authentication).
-- `VROUTER_I18N_TYPE` — Localization method. Can be `domain` or `location` (default - `location`).
+- `VROUTER_DOMAIN_MAP` — JSON structure to map language to domain. Example: '{"en" : "global.company.com", "cn" : "company.cn"}'
+- `VROUTER_I18N_TYPE` — Localization method. Can be `domain`, `location` or `separate-domain` (default - `location`).
   - `location` - Versioned pages URL is like `/<LANGUAGE><VROUTER_LOCATIONVERSIONS>/`. E.g `/en/documentation/`.
   - `domain` - Versioned pages URL is like `<LANGUAGE>.somedomain/<VROUTER_LOCATIONVERSIONS>/`. E.g `ru.product.my/documentation/`.
+  - `separate-domain` - Use a separate domain for each language. Fill the `VROUTER_DOMAIN_MAP` value to use this mode.
 
 ### Templates
 
