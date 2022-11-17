@@ -2,7 +2,9 @@ package main
 
 import (
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
@@ -32,6 +34,7 @@ type GlobalConfigType struct {
 	LocationVersions  string `default:"/documentation" split_words:"true"`
 	I18nType          string `default:"domain" split_words:"true"`
 	UrlValidation     bool   `default:"false" split_words:"true"`
+	DomainMap         string `default:"" split_words:"true"`
 }
 
 type ChannelType struct {
@@ -79,15 +82,29 @@ type versionMenuItems struct {
 }
 
 var ReleasesStatus ReleasesStatusType
+var DomainMap map[string]string
 
 var channelsListReverseStability = []string{"rock-solid", "stable", "ea", "beta", "alpha"}
+var i18nTypes = []string{"domain", "location", "separate-domain"}
+
+// Сhecks if a string is present in a slice.
+func contains(s []string, str string) bool {
+	for _, v := range s {
+		if v == str {
+			return true
+		}
+	}
+
+	return false
+}
 
 func ValidateConfig() {
-	if GlobalConfig.I18nType != "domain" && GlobalConfig.I18nType != "location" {
-		log.Fatalln(fmt.Sprintf("Unknown localization method specified (%s). It can be 'domain' or 'location'.", GlobalConfig.I18nType))
+	if !contains(i18nTypes, GlobalConfig.I18nType) {
+		log.Fatalln(fmt.Sprintf("Unknown localization method specified (%s). It must be one of the following: %s.", GlobalConfig.I18nType, strings.Join(i18nTypes, ", ")))
 	}
 	// Check template directory
-	if GlobalConfig.I18nType == "domain" {
+	switch GlobalConfig.I18nType {
+	case "domain":
 		if fi, err := os.Stat(getRootFilesPath() + GlobalConfig.PathTpls); err == nil {
 			if !fi.IsDir() {
 				log.Fatalln(fmt.Sprintf("Incorrect path for templates. The '%s%s' path is not a directory", getRootFilesPath(), GlobalConfig.PathTpls))
@@ -95,7 +112,12 @@ func ValidateConfig() {
 		} else {
 			log.Fatalln(fmt.Sprintf("Template directory '%s%s' doesn't exist", getRootFilesPath(), GlobalConfig.PathTpls))
 		}
+	case "separate-domain":
+		if err := getDomainMap(); err != nil {
+			log.Fatal(err.Error())
+		}
 	}
+
 	// Check channels file
 	if _, err := os.Stat(GlobalConfig.PathChannelsFile); err != nil {
 		if os.IsNotExist(err) {
@@ -118,6 +140,9 @@ func printConfiguration() {
 	log.Infoln(fmt.Sprintf("Templates directory: %s%s", getRootFilesPath(), GlobalConfig.PathTpls))
 	log.Infoln(fmt.Sprintf("URL location for versions: %s", GlobalConfig.LocationVersions))
 	log.Infoln(fmt.Sprintf("Localization method: %s", GlobalConfig.I18nType))
+	if GlobalConfig.I18nType == "separate-domain" {
+		log.Infoln(fmt.Sprintf("Domain map: %s", DomainMap))
+	}
 	log.Infoln(fmt.Sprintf("Default group: %s", GlobalConfig.DefaultGroup))
 	log.Infoln(fmt.Sprintf("Default channel: %s", GlobalConfig.DefaultChannel))
 	log.Infoln(fmt.Sprintf("Show the 'latest' channel: %v", GlobalConfig.ShowLatestChannel))
@@ -457,19 +482,28 @@ func getCurrentPageURL(r *http.Request) (result string) {
 // E.g /documentation/v1.2.3/reference/build_process.html
 func getCurrentLang(r *http.Request) (result string) {
 	result = "en"
-	originalURI, err := url.Parse(r.Header.Get("x-original-uri"))
-	if err != nil {
-		return
-	}
 
-	if originalURI.Path == "/404.html" {
-		return
-	}
+	switch GlobalConfig.I18nType {
+	case "separate-domain":
+		return getLanguageFromDomainMap(r.Host)
+	case "domain":
+		return getLanguageFromDomain(r.Host)
+	case "location":
 
-	re := regexp.MustCompile(fmt.Sprintf("^/(ru|en)%s/.+$", GlobalConfig.LocationVersions))
-	res := re.FindStringSubmatch(originalURI.Path)
-	if res != nil {
-		result = res[1]
+		originalURI, err := url.Parse(r.Header.Get("x-original-uri"))
+		if err != nil {
+			return
+		}
+
+		if originalURI.Path == "/404.html" {
+			return
+		}
+
+		re := regexp.MustCompile(fmt.Sprintf("^/(ru|en)%s/.+$", GlobalConfig.LocationVersions))
+		res := re.FindStringSubmatch(originalURI.Path)
+		if res != nil {
+			result = res[1]
+		}
 	}
 	return
 
@@ -500,21 +534,32 @@ func getDocPageURLRelative(r *http.Request, useURI bool) (result string) {
 	}
 	URLtoParse = originalURI.Path
 
-	re := regexp.MustCompile(fmt.Sprintf("^/(ru|en)(%s/[^/]+)?/(.*)$", GlobalConfig.LocationVersions))
-	res := re.FindStringSubmatch(URLtoParse)
-	if res != nil {
-		if len(res[2]) > 0 {
-			result = res[3]
-		} else {
-			result = fmt.Sprintf("%s/%s", res[2], res[3])
+	if GlobalConfig.I18nType == "location" {
+		re := regexp.MustCompile(fmt.Sprintf("^/(ru|en)(%s/[^/]+)?/(.*)$", GlobalConfig.LocationVersions))
+		res := re.FindStringSubmatch(URLtoParse)
+		if res != nil {
+			if len(res[2]) > 0 {
+				result = res[3]
+			} else {
+				result = fmt.Sprintf("%s/%s", res[2], res[3])
+			}
+		}
+	} else {
+		re := regexp.MustCompile(fmt.Sprintf("^%s/[^/]+/(.*)$", GlobalConfig.LocationVersions))
+		res := re.FindStringSubmatch(URLtoParse)
+		if res != nil {
+			result = res[1]
 		}
 	}
+
 	return
 }
 
 // Get version URL page belongs to if request came from concrete documentation version, otherwise empty.
 // E.g for the /documentation/v1.2.3-plus-fix5/reference/build_process.html return "v1.2.3-plus-fix5".
 func getVersionURL(r *http.Request) (result string) {
+	var re *regexp.Regexp
+
 	URLtoParse := ""
 	originalURI, err := url.Parse(r.Header.Get("x-original-uri"))
 
@@ -532,10 +577,18 @@ func getVersionURL(r *http.Request) (result string) {
 		URLtoParse = originalURI.Path
 	}
 
-	re := regexp.MustCompile(fmt.Sprintf("^/(ru|en)%s/([^/]+)/?.*$", GlobalConfig.LocationVersions))
-	res := re.FindStringSubmatch(URLtoParse)
-	if res != nil {
-		result = res[2]
+	if GlobalConfig.I18nType == "location" {
+		re = regexp.MustCompile(fmt.Sprintf("^/(ru|en)%s/([^/]+)/?.*$", GlobalConfig.LocationVersions))
+		res := re.FindStringSubmatch(URLtoParse)
+		if res != nil {
+			result = res[2]
+		}
+	} else {
+		re = regexp.MustCompile(fmt.Sprintf("^%s/([^/]+)/?.*$", GlobalConfig.LocationVersions))
+		res := re.FindStringSubmatch(URLtoParse)
+		if res != nil {
+			result = res[1]
+		}
 	}
 
 	return strings.TrimPrefix(result, "/")
@@ -660,4 +713,34 @@ func updateReleasesStatus() error {
 		return unmarshalYAML(data, &ReleasesStatus)
 	}
 	return fmt.Errorf("failed to decode channels file %s", GlobalConfig.PathChannelsFile)
+}
+
+func getDomainMap() error {
+	if len(GlobalConfig.DomainMap) == 0 {
+		return errors.New("Domain map is empty. Use the VROUTER_DOMAIN_MAP environment variable to specify a domain map.")
+	}
+
+	DomainMapRaw, err := base64.StdEncoding.DecodeString(GlobalConfig.DomainMap)
+
+	if err != nil {
+		return errors.New("Can't decode domain map content (the VROUTER_DOMAIN_MAP environment variable)")
+	}
+	log.Debugf("Domain map decoded string: %v", string(DomainMapRaw))
+
+	err = json.Unmarshal(DomainMapRaw, &DomainMap)
+	if err != nil {
+		return errors.New("Can't unmarshal domain map JSON structure (the VROUTER_DOMAIN_MAP environment variable)")
+	}
+
+	// Check DomainMap for empty key/values
+	for lang, domain := range DomainMap {
+		if len(lang) == 0 {
+			return errors.New("Incorrect domain map structure: one of the key is empty")
+		}
+		if len(domain) == 0 {
+			return errors.New("Incorrect domain map structure: one of the value is empty")
+		}
+	}
+
+	return nil
 }
