@@ -534,19 +534,24 @@ func getDocPageURLRelative(r *http.Request, useURI bool) (result string) {
 	}
 	URLtoParse = originalURI.Path
 
-	if GlobalConfig.I18nType != "location" {
-		return URLtoParse
-	}
-
-	re := regexp.MustCompile(fmt.Sprintf("^/(ru|en)(%s/[^/]+)?/(.*)$", GlobalConfig.LocationVersions))
-	res := re.FindStringSubmatch(URLtoParse)
-	if res != nil {
-		if len(res[2]) > 0 {
-			result = res[3]
-		} else {
-			result = fmt.Sprintf("%s/%s", res[2], res[3])
+	if GlobalConfig.I18nType == "location" {
+		re := regexp.MustCompile(fmt.Sprintf("^/(ru|en)(%s/[^/]+)?/(.*)$", GlobalConfig.LocationVersions))
+		res := re.FindStringSubmatch(URLtoParse)
+		if res != nil {
+			if len(res[2]) > 0 {
+				result = res[3]
+			} else {
+				result = fmt.Sprintf("%s/%s", res[2], res[3])
+			}
+		}
+	} else {
+		re := regexp.MustCompile(fmt.Sprintf("^%s/[^/]+/(.*)$", GlobalConfig.LocationVersions))
+		res := re.FindStringSubmatch(URLtoParse)
+		if res != nil {
+			result = res[1]
 		}
 	}
+
 	return
 }
 
