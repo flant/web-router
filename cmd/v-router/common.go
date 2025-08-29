@@ -219,6 +219,7 @@ func (m *templateDataType) getChannelMenuData(r *http.Request, releases *Release
 
 func (m *templateDataType) getVersionMenuData(r *http.Request) (err error) {
 	err = nil
+	log.Debugln("func getVersionMenuData")
 
 	m.CurrentPageURLRelative = getDocPageURLRelative(r, false)
 	m.CurrentPageURL = getCurrentPageURL(r)
@@ -236,6 +237,8 @@ func (m *templateDataType) getVersionMenuData(r *http.Request) (err error) {
 			m.CurrentVersionURL = VersionToURL(m.CurrentVersion)
 		}
 	}
+
+	log.Debug(fmt.Sprintf("func getVersionMenuData m [step 1]: %s", m))
 
 	re := regexp.MustCompile(`^(v[0-9]+)(\..+)?$`)
 	res := re.FindStringSubmatch(m.CurrentVersion)
@@ -255,6 +258,8 @@ func (m *templateDataType) getVersionMenuData(r *http.Request) (err error) {
 		m.MenuDocumentationLink = fmt.Sprintf("%s/%s/", GlobalConfig.LocationVersions, m.CurrentVersion)
 		m.AbsoluteVersion = m.CurrentVersion
 	}
+
+	log.Debug(fmt.Sprintf("func getVersionMenuData m [step 2]: %s", m))
 
 	// Add the first menu item
 	m.VersionItems = append(m.VersionItems, versionMenuItems{

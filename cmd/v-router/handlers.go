@@ -45,7 +45,7 @@ func groupHandler(w http.ResponseWriter, r *http.Request) {
 	var langPrefix string
 
 	_ = updateReleasesStatus()
-	log.Debugln("Use handler - groupHandler")
+	log.Debugln("Use groupHandler handler")
 
 	vars := mux.Vars(r)
 	if len(vars["lang"]) > 0 && GlobalConfig.I18nType == "location" {
@@ -68,7 +68,7 @@ func groupChannelHandler(w http.ResponseWriter, r *http.Request) {
 	var re *regexp.Regexp
 	var err error
 
-	log.Debugln("Use handler - groupChannelHandler")
+	log.Debugln("Use groupChannelHandler handler")
 
 	pageURLRelative := "/"
 	vars := mux.Vars(r)
@@ -114,6 +114,7 @@ func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 // Render templates
 func templateHandler(w http.ResponseWriter, r *http.Request) {
 	var tplPath string
+	log.Debugln("Use templateHandler handler")
 	if err := updateReleasesStatus(); err != nil {
 		log.Println(err)
 	}
@@ -228,7 +229,7 @@ func serveFilesHandler(fs http.FileSystem) http.Handler {
 func rootDocHandler(w http.ResponseWriter, r *http.Request) {
 	var redirectTo, langPrefix string
 
-	log.Debugln("Use handler - rootDocHandler")
+	log.Debugln("Use rootDocHandler handler")
 
 	vars := mux.Vars(r)
 	if len(vars["lang"]) > 0 && GlobalConfig.I18nType == "location" {
