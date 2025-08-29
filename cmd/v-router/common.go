@@ -238,7 +238,7 @@ func (m *templateDataType) getVersionMenuData(r *http.Request) (err error) {
 		}
 	}
 
-	log.Debug(fmt.Sprintf("func getVersionMenuData m [step 1]: %s", m))
+	log.Debug(fmt.Sprintf("func getVersionMenuData m [step 1]: %s", toJSON(m)))
 
 	re := regexp.MustCompile(`^(v[0-9]+)(\..+)?$`)
 	res := re.FindStringSubmatch(m.CurrentVersion)
@@ -259,7 +259,7 @@ func (m *templateDataType) getVersionMenuData(r *http.Request) (err error) {
 		m.AbsoluteVersion = m.CurrentVersion
 	}
 
-	log.Debug(fmt.Sprintf("func getVersionMenuData m [step 2]: %s", m))
+	log.Debug(fmt.Sprintf("func getVersionMenuData m [step 2]: %s", toJSON(m)))
 
 	// Add the first menu item
 	m.VersionItems = append(m.VersionItems, versionMenuItems{
@@ -748,4 +748,17 @@ func getDomainMap() error {
 	}
 
 	return nil
+}
+
+// toJSON takes an interface, marshals it to json, and returns a string. It will
+// always return a string, even on marshal error (empty string).
+//
+// This is designed to be called from a template.
+func toJSON(v interface{}) string {
+	data, err := json.Marshal(v)
+	if err != nil {
+		// Swallow errors inside of a template.
+		return ""
+	}
+	return string(data)
 }
